@@ -1,9 +1,23 @@
 package com.ensifera.animosity.craftirc;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.ConnectException;
 import java.net.UnknownHostException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -16,13 +30,21 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.logging.Level;
 
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
+
+import com.earth2me.essentials.Essentials;
+import com.ensifera.animosity.craftirc.CraftIRC;
 import com.ensifera.animosity.craftirc.libs.com.sk89q.util.config.ConfigurationNode;
+import com.ensifera.animosity.craftirc.libs.org.jibble.pircbot.DccChat;
 import com.ensifera.animosity.craftirc.libs.org.jibble.pircbot.IrcException;
 import com.ensifera.animosity.craftirc.libs.org.jibble.pircbot.PircBot;
 import com.ensifera.animosity.craftirc.libs.org.jibble.pircbot.TrustingSSLSocketFactory;
 
 public final class Minebot extends PircBot implements Runnable {
-    private CraftIRC plugin = null;
+	public static Essentials essentials;
+	private CraftIRC plugin = null;
     private final boolean debug;
     private final int botId;
     private String nickname;
@@ -92,9 +114,25 @@ public final class Minebot extends PircBot implements Runnable {
             }
         }, 5, 5);
     }
+    
+    public void CustomInfo() {
+		setVersion("WildBot"); // visible to whois and CTCP version
+		setFinger("Get your finger off of me!");  // visible on CTCP finger
+		setLogin("WildBot");  // the user login in the host mask
+	  	}
+    
+
 
     @Override
     public synchronized void run() {
+        Plugin essentialsPlugin = Bukkit.getPluginManager().getPlugin("Essentials");
+        if (essentialsPlugin.isEnabled() && (essentialsPlugin instanceof Essentials)) {
+            this.essentials = (Essentials) essentialsPlugin;
+    } else {
+           //could not hook
+    	this.plugin.logWarn("error while hooking essentials");
+    }
+
         this.setVerbose(this.debug);
         this.setMessageDelay(this.plugin.cBotMessageDelay(this.botId));
         this.setQueueSize(this.plugin.cBotQueueSize(this.botId));
@@ -308,14 +346,30 @@ public final class Minebot extends PircBot implements Runnable {
     }
 
     @Override
+    ///bahhh not working!!!!! banned link
     public void onJoin(String channel, String sender, String login, String hostname) {
-        channel = channel.toLowerCase();
+           	channel = channel.toLowerCase();
         if (this.channels.containsKey(channel)) {
             if (sender.equals(this.getNick())) {
                 this.amNowInChannel(channel);
             } else {
-                if (this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender)) {
-                    return;
+          	if (this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase())) {
+                try {
+                	    Thread.sleep(1500);
+                	} catch(InterruptedException ex) {
+                	    Thread.currentThread().interrupt();
+                	}
+                	this.setMode(channel, "-v " + sender);
+                	this.sendMessage(channel, "Sorry " + sender + ", you need to use an in-game name as your nick");
+                	return;
+                } else {
+                	if (Bukkit.getServer().getOfflinePlayer(sender) != null) {
+                		if (Bukkit.getServer().getOfflinePlayer(sender).isBanned() || essentials.getUser(sender).isMuted()) {
+                        	this.setMode(channel, "-v " + sender);//not working
+                        	this.sendMessage(channel, "Sorry " + sender + ", you are currently banned/muted in-game. Please private msg a mod to appeal.");
+                			return;
+                		}
+                	}
                 }
                 final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "join");
                 if (msg == null) {
@@ -348,7 +402,7 @@ public final class Minebot extends PircBot implements Runnable {
             this.noLongerInChannel(channel, true);
         }
         if (this.channels.containsKey(channel)) {
-            if (this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender)) {
+            if (this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase())) {
                 return;
             }
             final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "part");
@@ -375,7 +429,7 @@ public final class Minebot extends PircBot implements Runnable {
             this.noLongerInChannel(channel, false);
         }
         if (this.channels.containsKey(channel)) {
-            if (this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender)) {
+            if (this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase())) {
                 return;
             }
             final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "quit");
@@ -405,7 +459,7 @@ public final class Minebot extends PircBot implements Runnable {
             if (recipientNick.equalsIgnoreCase(this.getNick())) {
                 this.joinChannel(channel, this.plugin.cChanPassword(this.botId, channel));
             }
-            if (this.plugin.cUseMapAsWhitelist(this.botId) && (!this.plugin.cNicknameIsInIrcMap(this.botId, kickerNick) || !this.plugin.cNicknameIsInIrcMap(this.botId, recipientNick))) {
+            if (this.plugin.cUseMapAsWhitelist(this.botId) && (!this.plugin.cNicknameIsInIrcMap(this.botId, kickerNick.toLowerCase()) || !this.plugin.cNicknameIsInIrcMap(this.botId, recipientNick.toLowerCase()))) {
                 return;
             }
             final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "kick");
@@ -435,7 +489,7 @@ public final class Minebot extends PircBot implements Runnable {
             this.nickname = newNick;
         }
         if (this.channels.containsKey(channel)) {
-            if (this.plugin.cUseMapAsWhitelist(this.botId) && (!this.plugin.cNicknameIsInIrcMap(this.botId, oldNick) || !this.plugin.cNicknameIsInIrcMap(this.botId, newNick))) {
+            if (this.plugin.cUseMapAsWhitelist(this.botId) && (!this.plugin.cNicknameIsInIrcMap(this.botId, oldNick.toLowerCase()) || !this.plugin.cNicknameIsInIrcMap(this.botId, newNick.toLowerCase()))) {
                 return;
             }
             final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "nick");
@@ -454,15 +508,111 @@ public final class Minebot extends PircBot implements Runnable {
             msg.post();
         }
     }
+    
+    @SuppressWarnings("rawtypes")
+	//More Custom Stuff
+    
+    //doing everything as filenames to make it easy to check via FTP / ls (small phone)
+    
+//save an authed user
+public boolean saveUser(String playername) {
+        File playerfile = new File("plugins/CraftIRC/wildbotusers/"+playername);
+        if (!playerfile.exists()) {
+       	 try {
+                playerfile.createNewFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+                return false;
+            }
+        } 
+       return true;
+    }
+//Checks if a player is authed - need to add a whois check!
+    public boolean isAuthed(String playername) {
+        File playerfile = new File("plugins/CraftIRC/wildbot/authed/"+playername);
+        if (playerfile.exists()) {
+        	sendRawLineViaQueue("WHOIS "+ playername);
+        	return true;
+        } 
+  return false;		
+    }
+    
+    
+ //ban user
+    public boolean banUser(String playername) {
+        File playerfile = new File("plugins/CraftIRC/wildbot/banned/"+playername);
+        if (!playerfile.exists()) {
+       	 try {
+                playerfile.createNewFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+                return false;
+            }
+        } 
+       return true;
+    }
+    
+//banLogging
+   
+    public void banLog(String banstring) {
+    	try
+    	{
+    	    String filename= "plugins/CraftIRC/wildbot/banned/wildbanlog.txt";
+    	    FileWriter fw = new FileWriter(filename,true); 
+    	    fw.write(banstring);
+    	    fw.close();
+    	}
+    	catch(IOException ioe)
+    	{
+    	    System.err.println("IOException: " + ioe.getMessage());
+    	}
+    }
+  
+//banlist - read back all banned users
+    
+    public String banList(String banstring) {
+    	List<String> lines;
+		try {
+			lines = Files.readAllLines(Paths.get("plugins/CraftIRC/wildbot/banned/wildbanlog.txt"), Charset.forName("UTF-8"));
+			for(String line:lines){
+				String list = line + "//" + line;
+		    	  
+		    	}
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		///return //something here!!!!
+		return "no bans";
+    	
+  }
+    //double this up for mute list!
+
+    
+//custom commands
+  
 
     @Override
     public void onMessage(String channel, String sender, String login, String hostname, String message) {
         channel = channel.toLowerCase();
         if (this.ignores.contains(sender)) {
-            return;
+        	sendMessage("SMC", "currently ignoring: " + sender);
+        	return;
         }
-        try {
-            if (this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender)) {
+        try { 
+        	if(message.toLowerCase().startsWith("!ban ")) {
+            	//custom in channel commands
+        		if (isAuthed(sender)) { 
+        			String banneduser = message.substring(message.indexOf(" ")).trim();
+        			String banningMod = sender;
+        			banUser(banneduser);
+        			String banString = banneduser + " banned by " + banningMod;
+        			banLog(banString);
+            		} else {
+            			sendMessage(sender, "No Permission");
+            		}
+        		return;
+                	} else if(this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase())) {
                 return;
             }
             final String[] splitMessage = message.split(" ");
@@ -534,6 +684,93 @@ public final class Minebot extends PircBot implements Runnable {
         }
     }
 
+    
+    
+    
+    @Override
+    protected void onIncomingChatRequest(DccChat chat) {
+    	sendMessage("SMC","Start");
+    	try {
+    		sendMessage("SMC","1");
+			chat.accept();
+			chat.sendLine("Welcome, Please login with !login <yourpass>");
+			String response = chat.readLine();
+			if (response.contains("!login p4ss")) {
+				String user = chat.getNick();
+				sendRawLineViaQueue("WHOIS "+ user);
+				chat.sendLine("You are now authenticated, private message me !help");
+				chat.close();
+			} else {
+				chat.sendLine("GTFO");
+				chat.close();
+			}			
+			
+		} catch (IOException e) {
+			//need to catch this for when people close with no auth
+			sendMessage("SMC","Arrrg");
+		} catch (final Exception e) {
+			//
+			sendMessage("SMC","Arrrg2");
+			
+		}
+    }
+    
+    
+    
+    
+    @SuppressWarnings("unchecked")
+	public void onPrivateMessage(String sender, String login, String hostname, String message) {
+    	sendMessage(sender,message);
+    	if (isAuthed(sender)) { 
+    	if(message.toLowerCase().startsWith("!hostmask ")) {
+    		
+    		String user = message.substring(message.indexOf(" ")).trim();
+    		// for tracking
+ 
+    	    sendRawLineViaQueue("WHOIS "+ user);  
+    		} 
+    	if(message.toLowerCase().startsWith("!say ")) {
+    		String msg = message.replace("!say ", "");
+    		sendMessage("#The-Wild", msg);
+    		} 
+    	
+    		} else {
+    			sendMessage(sender, "No Permission");
+    	} 
+    }
+    
+    
+    protected void onServerResponse(int code, String response) {
+    	//sendMessage("SMC", "The server says: "+ response);
+    	if(code == RPL_WHOISUSER) {
+        	String parts[] = response.split(" ");
+        	String user = parts[1].toLowerCase();
+        	//need to process who is here
+    	}
+    }
+    
+  
+  
+  
+  public void MuteWrite(String message) {
+	  BufferedWriter writer = null;
+	  try {
+	      writer = new BufferedWriter(new OutputStreamWriter(
+	            new FileOutputStream("IRCmutes.txt"), "utf-8"));
+	      writer.write(message);
+	      writer.newLine();
+	  } catch (IOException ex) {
+	    // report
+	  } finally {
+	     try {writer.close();} catch (Exception ex) {}
+	  }
+	} 
+  
+
+    //End SMC Custom Stuff
+    
+    
+
     @Override
     protected void onNotice(String sender, String login, String hostname, String target, String notice) {
         target = target.toLowerCase();
@@ -541,7 +778,7 @@ public final class Minebot extends PircBot implements Runnable {
         if (msg == null) {
             return;
         }
-        if (this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender)) {
+        if (this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase())) {
             return;
         }
         msg.setField("sender", this.plugin.cIrcDisplayName(this.botId, sender));
@@ -564,7 +801,7 @@ public final class Minebot extends PircBot implements Runnable {
         if (msg == null) {
             return;
         }
-        if (this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender)) {
+        if (this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase())) {
             return;
         }
         msg.setField("sender", this.plugin.cIrcDisplayName(this.botId, sender));
@@ -587,7 +824,7 @@ public final class Minebot extends PircBot implements Runnable {
         if (msg == null) {
             return;
         }
-        if (this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender)) {
+        if (this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase())) {
             return;
         }
         msg.setField("sender", this.plugin.cIrcDisplayName(this.botId, sender));

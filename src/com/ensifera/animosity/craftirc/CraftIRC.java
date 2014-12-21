@@ -9,12 +9,15 @@ import java.util.regex.Pattern;
 
 import net.milkbowl.vault.chat.Chat;
 
+import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import com.earth2me.essentials.Essentials;
 import com.ensifera.animosity.craftirc.libs.com.sk89q.util.config.Configuration;
 import com.ensifera.animosity.craftirc.libs.com.sk89q.util.config.ConfigurationNode;
 import com.ensifera.animosity.craftirc.libs.org.jibble.pircbot.Colors;
@@ -26,6 +29,7 @@ import com.ensifera.animosity.craftirc.libs.org.jibble.pircbot.Colors;
  * @author mbaxter
  */
 public class CraftIRC extends JavaPlugin {
+	public static Essentials essentials;
     private Configuration configuration;
 
     //Misc class attributes
@@ -85,6 +89,15 @@ public class CraftIRC extends JavaPlugin {
                 this.autoDisable();
                 return;
             }
+            //hook essentials
+            Plugin essentialsPlugin = Bukkit.getPluginManager().getPlugin("Essentials");
+            if (essentialsPlugin.isEnabled() && (essentialsPlugin instanceof Essentials)) {
+                this.essentials = (Essentials) essentialsPlugin;
+        } else {
+                // Disable the plugin
+                Bukkit.getPluginManager().disablePlugin(this);
+        }
+            
             this.derpFakeExceptionSent = false;
             this.configuration = new Configuration(configFile);
             this.configuration.load();
