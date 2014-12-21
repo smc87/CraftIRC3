@@ -346,7 +346,7 @@ public final class Minebot extends PircBot implements Runnable {
     }
 
     @Override
-    ///bahhh not working!!!!! banned link
+    //checks for players who have been on the server and are not banned or muted.
     public void onJoin(String channel, String sender, String login, String hostname) {
            	channel = channel.toLowerCase();
         if (this.channels.containsKey(channel)) {
