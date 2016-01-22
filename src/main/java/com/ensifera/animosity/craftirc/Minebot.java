@@ -1,0 +1,935 @@
+package com.ensifera.animosity.craftirc;
+
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import com.earth2me.essentials.Essentials;
+import com.ensifera.animosity.craftirc.CraftIRC;
+import com.ensifera.animosity.craftirc.libs.com.sk89q.util.config.ConfigurationNode;
+import com.ensifera.animosity.craftirc.libs.org.jibble.pircbot.DccChat;
+import com.ensifera.animosity.craftirc.libs.org.jibble.pircbot.IrcException;
+import com.ensifera.animosity.craftirc.libs.org.jibble.pircbot.PircBot;
+import com.ensifera.animosity.craftirc.libs.org.jibble.pircbot.TrustingSSLSocketFactory;
+
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.UnsupportedEncodingException;
+import java.net.ConnectException;
+import java.net.UnknownHostException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.logging.Level;
+
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
+
+import com.earth2me.essentials.Essentials;
+import com.ensifera.animosity.craftirc.CraftIRC;
+import com.ensifera.animosity.craftirc.libs.com.sk89q.util.config.ConfigurationNode;
+import com.ensifera.animosity.craftirc.libs.org.jibble.pircbot.DccChat;
+import com.ensifera.animosity.craftirc.libs.org.jibble.pircbot.IrcException;
+import com.ensifera.animosity.craftirc.libs.org.jibble.pircbot.PircBot;
+import com.ensifera.animosity.craftirc.libs.org.jibble.pircbot.TrustingSSLSocketFactory;
+
+public final class Minebot extends PircBot implements Runnable {
+	public static Essentials essentials;
+	private CraftIRC plugin = null;
+//public final class Minebot extends PircBot implements Runnable {    //FIX FOR MERGE
+//    private final CraftIRC plugin;
+    private final boolean debug;
+    private final int botId;
+    private String nickname;
+
+    private final Thread thread;
+
+    private final Timer timer = new Timer();
+    private int lasttime;
+    private int gametime;
+    private int alertedtime;
+
+    // Connection attributes
+    private boolean ssl;
+    private String ircServer;
+    private int ircPort;
+    private String ircPass;
+    private int localBindPort;
+
+    // Nickname authentication
+    private String authMethod;
+    private String authUser;
+    private String authPass;
+    private int authDelay;
+
+    // Channels
+    private Set<String> whereAmI;
+    private Map<String, IRCChannelPoint> channels;
+
+    // Other things that may be more efficient to store here
+    private List<String> ignores;
+    private String cmdPrefix;
+
+    // Exception spam minimization
+    private Class<? extends Exception> lastConnectionException;
+    private String lastConnectionMessage;
+
+    private final String stoppedRespondingMessage;
+
+    Minebot(CraftIRC plugin, int botId, boolean debug) {
+        super();
+        this.plugin = plugin;
+        this.botId = botId;
+        this.debug = debug;
+        this.thread = new Thread(this);
+        this.thread.start();
+        this.stoppedRespondingMessage = this.plugin.cStoppedRespondingMessage();
+
+        if (this.stoppedRespondingMessage != null && !this.stoppedRespondingMessage.isEmpty()) {
+            this.initStoppedRespondingCheckLoop();
+        }
+    }
+
+    private void initStoppedRespondingCheckLoop() {
+        timer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                if (lasttime == gametime && gametime != alertedtime) {
+                    alertedtime = gametime;
+                    for (final String chan : Minebot.this.channels.keySet()) {
+                        Minebot.this.sendMessage(chan, Minebot.this.stoppedRespondingMessage);
+                    }
+                } else {
+                    lasttime = gametime;
+                }
+            }
+
+        }, 30000, 30000);
+        this.plugin.getServer().getScheduler().scheduleSyncRepeatingTask(this.plugin, new Runnable() {
+            public void run() {
+                gametime++;
+            }
+        }, 5, 5);
+    }
+    
+    public void CustomInfo() {
+		setVersion("WildBot"); // visible to whois and CTCP version
+		setFinger("Get your finger off of me!");  // visible on CTCP finger
+		setLogin("WildBot");  // the user login in the host mask
+	  	}
+    
+
+
+    @Override
+    public synchronized void run() {
+        Plugin essentialsPlugin = Bukkit.getPluginManager().getPlugin("Essentials");
+        if (essentialsPlugin.isEnabled() && (essentialsPlugin instanceof Essentials)) {
+            this.essentials = (Essentials) essentialsPlugin;
+    } else {
+           //could not hook
+    	this.plugin.logWarn("error while hooking essentials");
+    }
+
+        this.setVerbose(this.debug);
+        this.setMessageDelay(this.plugin.cBotMessageDelay(this.botId));
+        this.setQueueSize(this.plugin.cBotQueueSize(this.botId));
+        this.setName(this.plugin.cBotNickname(this.botId));
+        String versionString = "CraftIRC v" + this.plugin.getDescription().getVersion();
+        this.setFinger(versionString);
+        this.setLogin(this.plugin.cBotLogin(this.botId));
+        this.setVersion(versionString);
+
+        this.nickname = this.plugin.cBotNickname(this.botId);
+
+        this.ssl = this.plugin.cBotSsl(this.botId);
+        this.ircServer = this.plugin.cBotServer(this.botId);
+        this.ircPort = this.plugin.cBotPort(this.botId);
+        this.ircPass = this.plugin.cBotPassword(this.botId);
+
+        this.authMethod = this.plugin.cBotAuthMethod(this.botId);
+        this.authUser = this.plugin.cBotAuthUsername(this.botId);
+        this.authPass = this.plugin.cBotAuthPassword(this.botId);
+        this.authDelay = this.plugin.cBotAuthDelay(this.botId);
+
+        this.localBindPort = this.plugin.cBotBindPort(this.botId);
+
+        this.whereAmI = new HashSet<>();
+        this.channels = new HashMap<>();
+        for (final ConfigurationNode channelNode : this.plugin.cChannels(this.botId)) {
+            final String name = channelNode.getString("name").toLowerCase();
+            if (this.channels.containsKey(name)) {
+                continue;
+            }
+            final IRCChannelPoint chan = new IRCChannelPoint(this, name);
+            if (!this.plugin.registerEndPoint(channelNode.getString("tag"), chan)) {
+                continue;
+            }
+            if (!this.plugin.cIrcTagGroup().equals("")) {
+                this.plugin.groupTag(channelNode.getString("tag"), this.plugin.cIrcTagGroup());
+            }
+            this.channels.put(name, chan);
+        }
+
+        this.ignores = this.plugin.cBotIgnoredUsers(this.botId);
+        this.cmdPrefix = this.plugin.cCommandPrefix(this.botId);
+
+        try {
+            this.setEncoding(this.plugin.cBotEncoding(this.botId));
+        } catch (UnsupportedEncodingException e) {
+            this.plugin.getLogger().log(Level.SEVERE, "Unsupported encoding in bot " + this.nickname + " on " + this.ircServer, e);
+        }
+
+        this.start();
+    }
+
+    public void delChannel(String tag) {
+        IRCChannelPoint point = this.channels.remove(tag);
+        if (point == null) {
+            return;
+        }
+        this.plugin.unregisterEndPoint(tag);
+        this.plugin.ungroupTag(tag);
+        this.partChannel("#" + tag, "No longer registered!");
+    }
+
+    public void addChannel(String channel) {
+        channel = channel.toLowerCase();
+        if (this.channels.containsKey(channel)) {
+            return;
+        }
+        final IRCChannelPoint chan = new IRCChannelPoint(this, "#" + channel);
+        String tag = "irc_" + channel;
+        if (!this.plugin.registerEndPoint(tag, chan)) {
+            return;
+        }
+        if (!this.plugin.cIrcTagGroup().equals("")) {
+            this.plugin.groupTag(tag, this.plugin.cIrcTagGroup());
+        }
+        this.channels.put("#" + channel, chan);
+        this.joinChannel("#" + channel);
+    }
+
+    /**
+     * Thread start
+     */
+    private void start() {
+        try {
+            this.setAutoNickChange(true);
+
+            final String localAddr = this.plugin.cBindLocalAddr();
+            if (!localAddr.isEmpty()) {
+
+                if (this.bindLocalAddr(localAddr, this.localBindPort)) {
+                    this.plugin.log("BINDING socket to " + localAddr + ":" + this.localBindPort);
+                }
+            }
+
+            this.connectToIrc();
+            this.plugin.scheduleForRetry(this, null);
+
+        } catch (final Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    void connectToIrc() {
+        final String serverDescription = this.ircServer + ":" + this.ircPort + ((this.ssl) ? " [SSL]" : "");
+        this.plugin.log("Connecting to " + serverDescription);
+        Exception exception = null;
+        try {
+            if (this.ssl) {
+                this.connect(this.ircServer, this.ircPort, this.ircPass, new TrustingSSLSocketFactory());
+            } else {
+                this.connect(this.ircServer, this.ircPort, this.ircPass);
+            }
+        } catch (final ConnectException e) {
+            exception = e;
+            this.plugin.logWarn("Couldn't connect to " + serverDescription);
+            this.plugin.logWarn("Check that the address is written correctly and no firewalls are blocking CraftIRC");
+            this.plugin.logWarn("If you're using a shared hosting provider, consider contacting tech support about this issue");
+        } catch (final UnknownHostException e) {
+            exception = e;
+            this.plugin.logWarn("Couldn't connect to " + serverDescription);
+            this.plugin.logWarn("Check that the address is written correctly");
+        } catch (final IOException | IrcException e) {
+            exception = e;
+        }
+        if (exception != null) {
+            if (exception.getClass() == lastConnectionException && exception.getMessage() != null && exception.getMessage().equals(lastConnectionMessage)) {
+                System.out.println(exception.getClass().getSimpleName() + ": " + exception.getMessage());
+            } else {
+                exception.printStackTrace();
+            }
+            lastConnectionException = exception.getClass();
+            lastConnectionMessage = exception.getMessage();
+        }
+    }
+
+    boolean isIn(String channel) {
+        return this.whereAmI.contains(channel);
+    }
+
+    void joinIrcChannel(String chan) {
+        this.joinChannel(chan, this.plugin.cChanPassword(this.botId, chan));
+    }
+
+    public CraftIRC getPlugin() {
+        return this.plugin;
+    }
+
+    public int getId() {
+        return this.botId;
+    }
+
+    @Override
+    public void onConnect() {
+        this.plugin.log("Connected");
+        this.authenticateBot();
+
+        final ArrayList<String> onConnect = this.plugin.cBotOnConnect(this.botId);
+        for (String anOnConnect : onConnect) {
+            this.sendRawLineViaQueue(anOnConnect);
+        }
+
+        for (final String chan : this.channels.keySet()) {
+            this.joinIrcChannel(chan);
+        }
+    }
+
+    private void authenticateBot() {
+        if (this.authMethod.equalsIgnoreCase("nickserv") && !this.authPass.isEmpty()) {
+            this.plugin.log("Using Nickserv authentication.");
+            this.sendMessage("nickserv", "GHOST " + this.nickname + " " + this.authPass);
+
+            // Some IRC servers have quite a delay when ghosting... ***** TO IMPROVE
+            try {
+                Thread.sleep(2000);
+            } catch (final InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            this.changeNick(this.nickname);
+            this.identify(this.authPass);
+
+        } else if (this.authMethod.equalsIgnoreCase("gamesurge")) {
+            this.plugin.log("Using GameSurge authentication.");
+            this.changeNick(this.nickname);
+            this.sendMessage("AuthServ@Services.GameSurge.net", "AUTH " + this.authUser + " " + this.authPass);
+
+        } else if (this.authMethod.equalsIgnoreCase("quakenet")) {
+            this.plugin.log("Using QuakeNet authentication.");
+            this.changeNick(this.nickname);
+            this.sendMessage("Q@CServe.quakenet.org", "AUTH " + this.authUser + " " + this.authPass);
+        }
+
+        if (!this.authMethod.equalsIgnoreCase("none") && (this.authDelay > 0)) {
+            try {
+                Thread.sleep(this.authDelay);
+            } catch (final InterruptedException ignored) {
+            }
+        }
+    }
+
+    private void amNowInChannel(String channel) {
+        channel = channel.toLowerCase();
+        this.plugin.log("Joined channel: " + channel);
+        this.whereAmI.add(channel);
+        final String tag = this.plugin.cChanTag(this.botId, channel);
+        if ((tag != null) && !this.plugin.endPointRegistered(tag)) {
+            this.plugin.registerEndPoint(tag, this.channels.get(channel));
+        }
+        for (final String line : this.plugin.cChanOnJoin(this.botId, channel)) {
+            this.sendRawLineViaQueue(line);
+        }
+    }
+
+    private boolean isThisIgnored(String sender) {
+        return (this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender)) ||
+                (this.ignores.contains(sender));
+    }
+
+    @Override
+    //checks for players who have been on the server and are not banned or muted.
+    public void onJoin(String channel, String sender, String login, String hostname) {
+           	channel = channel.toLowerCase();
+        if (this.channels.containsKey(channel)) {
+            if (sender.equals(this.getNick())) {
+                this.amNowInChannel(channel);
+            } else {
+          	if (this.isThisIgnored(sender) || this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase())) {
+                try {
+                	    Thread.sleep(1500);
+                	} catch(InterruptedException ex) {
+                	    Thread.currentThread().interrupt();
+                	}
+                	this.setMode(channel, "-v " + sender);
+                	this.sendMessage(channel, "Sorry " + sender + ", you need to use an in-game name as your nick");
+                	return;
+                } else {
+                	if (Bukkit.getServer().getOfflinePlayer(sender) != null) {
+                		if (Bukkit.getServer().getOfflinePlayer(sender).isBanned() || essentials.getUser(sender).isMuted()) {
+                        	this.setMode(channel, "-v " + sender);//not working
+                        	this.sendMessage(channel, "Sorry " + sender + ", you are currently banned/muted in-game. Please private msg a mod to appeal.");
+                			return;
+                		}
+                	}
+                }
+                final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "join");
+                if (msg == null) {
+                    return;
+                }
+                msg.setField("sender", this.plugin.cIrcDisplayName(this.botId, sender));
+                msg.setField("realSender", sender);
+                msg.setField("srcChannel", channel);
+                msg.setField("srcNetwork", this.getNetworkName());
+                msg.setField("username", login);
+                msg.setField("hostname", hostname);
+                msg.doNotColor("username");
+                msg.doNotColor("hostname");
+                msg.post();
+            }
+        }
+    }
+
+    private void noLongerInChannel(String channel, boolean rejoin) {
+        this.whereAmI.remove(channel);
+        this.plugin.unregisterEndPoint(this.plugin.cChanTag(this.botId, channel));
+        if (rejoin) {
+            this.plugin.scheduleForRetry(this, channel);
+        }
+    }
+
+    @Override
+    public void onPart(String channel, String sender, String login, String hostname, String reason) {
+        channel = channel.toLowerCase();
+        if (sender.equals(this.getNick())) {
+            this.noLongerInChannel(channel, true);
+        }
+        if (this.channels.containsKey(channel)) {
+            if (this.isThisIgnored(sender) || this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase())) {
+                return;
+            }
+            final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "part");
+            if (msg == null) {
+                return;
+            }
+            msg.setField("sender", this.plugin.cIrcDisplayName(this.botId, sender));
+            msg.setField("realSender", sender);
+            msg.setField("srcChannel", channel);
+            msg.setField("srcNetwork", this.getNetworkName());
+            msg.setField("message", reason);
+            msg.setField("username", login);
+            msg.setField("hostname", hostname);
+            msg.doNotColor("message");
+            msg.doNotColor("username");
+            msg.doNotColor("hostname");
+            msg.post();
+        }
+    }
+
+    @Override
+    public void onChannelQuit(String channel, String sender, String login, String hostname, String reason) {
+        channel = channel.toLowerCase();
+        if (sender.equals(this.getNick())) {
+            this.noLongerInChannel(channel, false);
+        }
+        if (this.channels.containsKey(channel)) {
+            if (this.isThisIgnored(sender) || this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase())) {
+                return;
+            }
+            final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "quit");
+            if (msg == null) {
+                return;
+            }
+            msg.setField("sender", this.plugin.cIrcDisplayName(this.botId, sender));
+            msg.setField("realSender", sender);
+            msg.setField("srcChannel", channel);
+            msg.setField("srcNetwork", this.getNetworkName());
+            msg.setField("message", reason);
+            msg.setField("username", login);
+            msg.setField("hostname", hostname);
+            msg.doNotColor("message");
+            msg.doNotColor("username");
+            msg.doNotColor("hostname");
+            msg.post();
+        }
+    }
+
+    @Override
+    public void onKick(String channel, String kickerNick, String kickerLogin, String kickerHostname, String recipientNick, String reason) {
+        channel = channel.toLowerCase();
+        if (recipientNick.equals(this.getNick())) {
+            this.noLongerInChannel(channel, true);
+        }
+        if (this.channels.containsKey(channel)) {
+            if (recipientNick.equalsIgnoreCase(this.getNick())) {
+                this.joinChannel(channel, this.plugin.cChanPassword(this.botId, channel));
+            }
+            if (this.isThisIgnored(kickerNick) || this.isThisIgnored(recipientNick) || this.plugin.cUseMapAsWhitelist(this.botId) && (!this.plugin.cNicknameIsInIrcMap(this.botId, kickerNick.toLowerCase()) || !this.plugin.cNicknameIsInIrcMap(this.botId, recipientNick.toLowerCase()))) {
+                return;
+            }
+            final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "kick");
+            if (msg == null) {
+                return;
+            }
+            msg.setField("sender", this.plugin.cIrcDisplayName(this.botId, recipientNick));
+            msg.setField("realSender", recipientNick);
+            msg.setField("srcChannel", channel);
+            msg.setField("srcNetwork", this.getNetworkName());
+            msg.setField("message", reason);
+            msg.setField("moderator", this.plugin.cIrcDisplayName(this.botId, kickerNick));
+            msg.setField("realModerator", kickerNick);
+            msg.setField("ircModPrefix", this.getHighestUserPrefix(this.getUser(kickerNick, channel)));
+            msg.setField("modUsername", kickerNick);
+            msg.setField("modHostname", kickerLogin);
+            msg.doNotColor("message");
+            msg.doNotColor("modUsername");
+            msg.doNotColor("modHostname");
+            msg.post();
+        }
+    }
+
+    @Override
+    public void onChannelNickChange(String channel, String oldNick, String login, String hostname, String newNick) {
+        channel = channel.toLowerCase();
+        if (oldNick.equals(this.getNick())) {
+            this.nickname = newNick;
+        }
+        if (this.channels.containsKey(channel)) {
+            if (this.isThisIgnored(oldNick) || this.isThisIgnored(newNick) || this.plugin.cUseMapAsWhitelist(this.botId) && (!this.plugin.cNicknameIsInIrcMap(this.botId, oldNick.toLowerCase()) || !this.plugin.cNicknameIsInIrcMap(this.botId, newNick.toLowerCase()))) {
+                return;
+            }
+            final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "nick");
+            if (msg == null) {
+                return;
+            }
+            msg.setField("sender", this.plugin.cIrcDisplayName(this.botId, oldNick));
+            msg.setField("realSender", oldNick);
+            msg.setField("srcChannel", channel);
+            msg.setField("srcNetwork", this.getNetworkName());
+            msg.setField("message", this.plugin.cIrcDisplayName(this.botId, newNick));
+            msg.setField("realMessage", newNick);
+            msg.setField("username", login);
+            msg.setField("hostname", hostname);
+            msg.doNotColor("username");
+            msg.doNotColor("hostname");
+            msg.post();
+        }
+    }
+    
+    @SuppressWarnings("rawtypes")
+	//More Custom Stuff
+    
+    //doing everything as filenames to make it easy to check via FTP / ls (small phone)
+    
+//save an authed user
+public boolean saveUser(String playername) {
+        File playerfile = new File("plugins/CraftIRC/wildbotusers/"+playername);
+        if (!playerfile.exists()) {
+       	 try {
+                playerfile.createNewFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+                return false;
+            }
+        } 
+       return true;
+    }
+//Checks if a player is authed - need to add a whois check!
+    public boolean isAuthed(String playername) {
+        File playerfile = new File("plugins/CraftIRC/wildbot/authed/"+playername);
+        if (playerfile.exists()) {
+        	sendRawLineViaQueue("WHOIS "+ playername);
+        	return true;
+        } 
+  return false;		
+    }
+    
+    
+ //ban user
+    public boolean banUser(String playername) {
+        File playerfile = new File("plugins/CraftIRC/wildbot/banned/"+playername);
+        if (!playerfile.exists()) {
+       	 try {
+                playerfile.createNewFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+                return false;
+            }
+        } 
+       return true;
+    }
+    
+//banLogging
+   
+    public void banLog(String banstring) {
+    	try
+    	{
+    	    String filename= "plugins/CraftIRC/wildbot/banned/wildbanlog.txt";
+    	    FileWriter fw = new FileWriter(filename,true); 
+    	    fw.write(banstring);
+    	    fw.close();
+    	}
+    	catch(IOException ioe)
+    	{
+    	    System.err.println("IOException: " + ioe.getMessage());
+    	}
+    }
+  
+//banlist - read back all banned users
+    
+    public String banList(String banstring) {
+    	List<String> lines;
+		try {
+			lines = Files.readAllLines(Paths.get("plugins/CraftIRC/wildbot/banned/wildbanlog.txt"), Charset.forName("UTF-8"));
+			for(String line:lines){
+				String list = line + "//" + line;
+		    	  
+		    	}
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		///return //something here!!!!
+		return "no bans";
+    	
+  }
+    //double this up for mute list!
+
+    
+//custom commands
+  
+
+    @Override
+    public void onMessage(String channel, String sender, String login, String hostname, String message) {
+        channel = channel.toLowerCase();
+        if (this.ignores.contains(sender)||this.isThisIgnored(sender)) {
+        	sendMessage("SMC", "currently ignoring: " + sender);
+        	return;
+        }
+        try { 
+        	if(message.toLowerCase().startsWith("!ban ")) {
+            	//custom in channel commands
+        		if (isAuthed(sender)) { 
+        			String banneduser = message.substring(message.indexOf(" ")).trim();
+        			String banningMod = sender;
+        			banUser(banneduser);
+        			String banString = banneduser + " banned by " + banningMod;
+        			banLog(banString);
+            		} else {
+            			sendMessage(sender, "No Permission");
+            		}
+        		return;
+                	} else if(this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase())) {
+                return;
+            }
+
+            final String[] splitMessage = message.split(" ");
+            final String command = splitMessage.length > 0 ? splitMessage[0] : "";
+            final String args = Util.combineSplit(1, splitMessage, " ");
+            RelayedCommand cmd = null;
+            final String localTag = this.plugin.cChanTag(this.botId, channel);
+            final boolean loopbackAdmin = this.plugin.cPathAttribute(localTag, localTag, "attributes.admin");
+            final boolean userAdmin = this.plugin.cBotAdminPrefixes(this.botId).contains(this.getHighestUserPrefix(this.getUser(sender, channel)));
+            if (this.cmdPrefix.equals("")) {
+                final List<String> allCommands = new ArrayList<>();
+                allCommands.addAll(this.plugin.cCmdWordCmd(this.botId));
+                allCommands.addAll(this.plugin.cCmdWordSay(this.botId));
+                allCommands.addAll(this.plugin.cCmdWordPlayers(this.botId));
+                for (final String cmdString : allCommands) {
+                    if (command.equals(cmdString)) {
+                        cmd = this.plugin.newCmd(this.channels.get(channel), command);
+                        break;
+                    }
+                }
+            } else if (command.startsWith(this.cmdPrefix)) {
+                cmd = this.plugin.newCmd(this.channels.get(channel), command.substring(this.cmdPrefix.length()));
+            }
+            if (cmd != null) {
+                // Normal command
+                cmd.setField("sender", this.plugin.cIrcDisplayName(this.botId, sender));
+                cmd.setField("realSender", sender);
+                cmd.setField("srcChannel", channel);
+                cmd.setField("srcNetwork", this.getNetworkName());
+                cmd.setField("message", message);
+                cmd.setField("args", args);
+                cmd.setField("ircPrefix", this.getHighestUserPrefix(this.getUser(sender, channel)));
+                cmd.setField("username", login);
+                cmd.setField("hostname", hostname);
+                cmd.doNotColor("username");
+                cmd.doNotColor("hostname");
+                cmd.setFlag("admin", userAdmin);
+                cmd.act();
+            } else if (command.toLowerCase().equals(this.cmdPrefix + "botsay") && loopbackAdmin && userAdmin) {
+                this.sendMessage(args.substring(0, args.indexOf(" ")), args.substring(args.indexOf(" ") + 1));
+            } else if (command.toLowerCase().equals(this.cmdPrefix + "raw") && loopbackAdmin && userAdmin) {
+                this.sendRawLine(args);
+            } else {
+                // Not a command
+                final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "chat");
+                if (msg == null) {
+                    return;
+                }
+                msg.setField("sender", this.plugin.cIrcDisplayName(this.botId, sender));
+                msg.setField("realSender", sender);
+                msg.setField("srcChannel", channel);
+                msg.setField("srcNetwork", this.getNetworkName());
+                msg.setField("message", message);
+                msg.setField("ircPrefix", this.getHighestUserPrefix(this.getUser(sender, channel)));
+                msg.setField("username", login);
+                msg.setField("hostname", hostname);
+                msg.doNotColor("message");
+                msg.doNotColor("username");
+                msg.doNotColor("hostname");
+                msg.post();
+            }
+        } catch (final Exception e) {
+            e.printStackTrace();
+            this.plugin.logWarn("error while relaying IRC message: " + message);
+        }
+    }
+
+    
+    
+    
+    @Override
+    protected void onIncomingChatRequest(DccChat chat) {
+    	sendMessage("SMC","Start");
+    	try {
+    		sendMessage("SMC","1");
+			chat.accept();
+			chat.sendLine("Welcome, Please login with !login <yourpass>");
+			String response = chat.readLine();
+			if (response.contains("!login p4ss")) {
+				String user = chat.getNick();
+				sendRawLineViaQueue("WHOIS "+ user);
+				chat.sendLine("You are now authenticated, private message me !help");
+				chat.close();
+			} else {
+				chat.sendLine("GTFO");
+				chat.close();
+			}			
+			
+		} catch (IOException e) {
+			//need to catch this for when people close with no auth
+			sendMessage("SMC","Arrrg");
+		} catch (final Exception e) {
+			//
+			sendMessage("SMC","Arrrg2");
+			
+		}
+    }
+    
+    
+    
+    
+    @SuppressWarnings("unchecked")
+	public void onPrivateMessage(String sender, String login, String hostname, String message) {
+    	sendMessage(sender,message);
+    	if (isAuthed(sender)) { 
+    	if(message.toLowerCase().startsWith("!hostmask ")) {
+    		
+    		String user = message.substring(message.indexOf(" ")).trim();
+    		// for tracking
+ 
+    	    sendRawLineViaQueue("WHOIS "+ user);  
+    		} 
+    	if(message.toLowerCase().startsWith("!say ")) {
+    		String msg = message.replace("!say ", "");
+    		sendMessage("#The-Wild", msg);
+    		} 
+    	
+    		} else {
+    			sendMessage(sender, "No Permission");
+    	} 
+    }
+    
+    
+    protected void onServerResponse(int code, String response) {
+    	//sendMessage("SMC", "The server says: "+ response);
+    	if(code == RPL_WHOISUSER) {
+        	String parts[] = response.split(" ");
+        	String user = parts[1].toLowerCase();
+        	//need to process who is here
+    	}
+    }
+    
+  
+  
+  
+  public void MuteWrite(String message) {
+	  BufferedWriter writer = null;
+	  try {
+	      writer = new BufferedWriter(new OutputStreamWriter(
+	            new FileOutputStream("IRCmutes.txt"), "utf-8"));
+	      writer.write(message);
+	      writer.newLine();
+	  } catch (IOException ex) {
+	    // report
+	  } finally {
+	     try {writer.close();} catch (Exception ex) {}
+	  }
+	} 
+  
+
+    //End SMC Custom Stuff
+    
+    
+
+    @Override
+    protected void onNotice(String sender, String login, String hostname, String target, String notice) {
+        target = target.toLowerCase();
+        final RelayedMessage msg = this.plugin.newMsg(this.channels.get(target), null, "notice");
+        if (msg == null) {
+            return;
+        }
+
+        if (this.isThisIgnored(sender)||(this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase()))) {
+            return;
+        }
+        msg.setField("sender", this.plugin.cIrcDisplayName(this.botId, sender));
+        msg.setField("realSender", sender);
+        msg.setField("srcChannel", target);
+        msg.setField("srcNetwork", this.getNetworkName());
+        msg.setField("message", notice);
+        msg.setField("ircPrefix", this.getHighestUserPrefix(this.getUser(sender, target)));
+        msg.setField("username", login);
+        msg.setField("hostname", hostname);
+        msg.doNotColor("message");
+        msg.doNotColor("username");
+        msg.doNotColor("hostname");
+        msg.post();
+    }
+
+    @Override
+    public void onAction(String sender, String login, String hostname, String target, String action) {
+        target = target.toLowerCase();
+        final RelayedMessage msg = this.plugin.newMsg(this.channels.get(target), null, "action");
+        if (msg == null) {
+            return;
+        }
+
+        if (this.isThisIgnored(sender)||(this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase()))) {
+            return;
+        }
+        msg.setField("sender", this.plugin.cIrcDisplayName(this.botId, sender));
+        msg.setField("realSender", sender);
+        msg.setField("srcChannel", target);
+        msg.setField("srcNetwork", this.getNetworkName());
+        msg.setField("message", action);
+        msg.setField("ircPrefix", this.getHighestUserPrefix(this.getUser(sender, target)));
+        msg.setField("username", login);
+        msg.setField("hostname", hostname);
+        msg.doNotColor("message");
+        msg.doNotColor("username");
+        msg.doNotColor("hostname");
+        msg.post();
+    }
+
+    @Override
+    public void onTopic(String channel, String topic, String sender, long date, boolean changed) {
+        channel = channel.toLowerCase();
+        final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "topic");
+        if (msg == null) {
+            return;
+        }
+
+        if (this.isThisIgnored(sender)||(this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase()))) {
+            return;
+        }
+        msg.setField("sender", this.plugin.cIrcDisplayName(this.botId, sender));
+        msg.setField("realSender", sender);
+        msg.setField("srcChannel", channel);
+        msg.setField("srcNetwork", this.getNetworkName());
+        msg.setField("message", topic);
+        msg.doNotColor("message");
+        msg.doNotColor("username");
+        msg.doNotColor("hostname");
+        msg.post();
+    }
+
+    @Override
+    protected void onMode(String channel, String moderator, String sourceLogin, String sourceHostname, String mode) {
+        channel = channel.toLowerCase();
+        final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "mode");
+        if (msg == null) {
+            return;
+        }
+        if (this.isThisIgnored(moderator)) {
+            return;
+        }
+        msg.setField("moderator", this.plugin.cIrcDisplayName(this.botId, moderator));
+        msg.setField("realModerator", moderator);
+        msg.setField("srcChannel", channel);
+        msg.setField("srcNetwork", this.getNetworkName());
+        msg.setField("message", mode);
+        msg.setField("username", sourceLogin);
+        msg.setField("hostname", sourceHostname);
+        msg.doNotColor("username");
+        msg.doNotColor("hostname");
+        msg.post();
+    }
+
+    public ArrayList<String> getChannelList() {
+        try {
+            return new ArrayList<>(Arrays.asList(this.getChannels()));
+        } catch (final Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    // Bot restart upon disconnect, if the plugin is still enabled
+    @Override
+    public void onDisconnect() {
+        try {
+            if (this.plugin.isEnabled()) {
+                this.plugin.log("disconnected from IRC server... reconnecting!");
+
+                this.plugin.scheduleForRetry(this, null);
+            }
+        } catch (final Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void onBlockColors(String channel, String moderator, String sourceLogin, String sourceHostname) {
+        channel = channel.toLowerCase();
+        if (!this.plugin.cChanForceColors(botId, channel)) {
+            return;
+        }
+        if (this.channels.containsKey(channel)) {
+            this.channels.get(channel).setAllowColors(false);
+        }
+    }
+
+    @Override
+    protected void onUnblockColors(String channel, String moderator, String sourceLogin, String sourceHostname) {
+        channel = channel.toLowerCase();
+        if (!this.plugin.cChanForceColors(botId, channel)) {
+            return;
+        }
+        if (this.channels.containsKey(channel)) {
+            this.channels.get(channel).setAllowColors(true);
+        }
+    }
+}

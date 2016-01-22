@@ -1,0 +1,54 @@
+﻿
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+# On branch master
+# Changes to be committed:
+#   (use "git reset HEAD <file>..." to unstage)
+#
+#	modified:   config.yml
+#	modified:   plugin.yml
+#	modified:   pom.xml
+#	deleted:    src/com/ensifera/animosity/craftirc/libs/com/sk89q/util/config/Configuration.java
+#	deleted:    src/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/DccManager.java
+#	deleted:    src/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/ReplyConstants.java
+#	renamed:    src/com/ensifera/animosity/craftirc/BasePoint.java -> src/main/java/com/ensifera/animosity/craftirc/BasePoint.java
+#	renamed:    src/com/ensifera/animosity/craftirc/CommandEndPoint.java -> src/main/java/com/ensifera/animosity/craftirc/CommandEndPoint.java
+#	renamed:    src/com/ensifera/animosity/craftirc/ConsoleListener.java -> src/main/java/com/ensifera/animosity/craftirc/ConsoleListener.java
+#	renamed:    src/com/ensifera/animosity/craftirc/ConsolePoint.java -> src/main/java/com/ensifera/animosity/craftirc/ConsolePoint.java
+#	renamed:    src/com/ensifera/animosity/craftirc/CraftIRC.java -> src/main/java/com/ensifera/animosity/craftirc/CraftIRC.java
+#	renamed:    src/com/ensifera/animosity/craftirc/CraftIRCListener.java -> src/main/java/com/ensifera/animosity/craftirc/CraftIRCListener.java
+#	renamed:    src/com/ensifera/animosity/craftirc/EndPoint.java -> src/main/java/com/ensifera/animosity/craftirc/EndPoint.java
+#	renamed:    src/com/ensifera/animosity/craftirc/IRCChannelPoint.java -> src/main/java/com/ensifera/animosity/craftirc/IRCChannelPoint.java
+#	renamed:    src/com/ensifera/animosity/craftirc/IRCCommandSender.java -> src/main/java/com/ensifera/animosity/craftirc/IRCCommandSender.java
+#	renamed:    src/com/ensifera/animosity/craftirc/Metrics.java -> src/main/java/com/ensifera/animosity/craftirc/Metrics.java
+#	renamed:    src/com/ensifera/animosity/craftirc/Minebot.java -> src/main/java/com/ensifera/animosity/craftirc/Minebot.java
+#	renamed:    src/com/ensifera/animosity/craftirc/MinecraftPoint.java -> src/main/java/com/ensifera/animosity/craftirc/MinecraftPoint.java
+#	renamed:    src/com/ensifera/animosity/craftirc/Path.java -> src/main/java/com/ensifera/animosity/craftirc/Path.java
+#	renamed:    src/com/ensifera/animosity/craftirc/RelayedCommand.java -> src/main/java/com/ensifera/animosity/craftirc/RelayedCommand.java
+#	renamed:    src/com/ensifera/animosity/craftirc/RelayedMessage.java -> src/main/java/com/ensifera/animosity/craftirc/RelayedMessage.java
+#	renamed:    src/com/ensifera/animosity/craftirc/RetryTask.java -> src/main/java/com/ensifera/animosity/craftirc/RetryTask.java
+#	renamed:    src/com/ensifera/animosity/craftirc/SecuredEndPoint.java -> src/main/java/com/ensifera/animosity/craftirc/SecuredEndPoint.java
+#	renamed:    src/com/ensifera/animosity/craftirc/Util.java -> src/main/java/com/ensifera/animosity/craftirc/Util.java
+#	renamed:    src/com/ensifera/animosity/craftirc/example/PluginExample.java -> src/main/java/com/ensifera/animosity/craftirc/example/PluginExample.java
+#	new file:   src/main/java/com/ensifera/animosity/craftirc/libs/com/sk89q/util/config/Configuration.java
+#	renamed:    src/com/ensifera/animosity/craftirc/libs/com/sk89q/util/config/ConfigurationException.java -> src/main/java/com/ensifera/animosity/craftirc/libs/com/sk89q/util/config/ConfigurationException.java
+#	renamed:    src/com/ensifera/animosity/craftirc/libs/com/sk89q/util/config/ConfigurationNode.java -> src/main/java/com/ensifera/animosity/craftirc/libs/com/sk89q/util/config/ConfigurationNode.java
+#	new file:   src/main/java/com/ensifera/animosity/craftirc/libs/com/sk89q/util/config/EmptyNullRepresenter.java
+#	renamed:    src/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/Colors.java -> src/main/java/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/Colors.java
+#	renamed:    src/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/DccChat.java -> src/main/java/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/DccChat.java
+#	renamed:    src/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/DccFileTransfer.java -> src/main/java/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/DccFileTransfer.java
+#	new file:   src/main/java/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/DccManager.java
+#	renamed:    src/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/FallbackInputStreamReader.java -> src/main/java/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/FallbackInputStreamReader.java
+#	renamed:    src/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/IdentServer.java -> src/main/java/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/IdentServer.java
+#	renamed:    src/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/InputThread.java -> src/main/java/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/InputThread.java
+#	renamed:    src/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/IrcException.java -> src/main/java/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/IrcException.java
+#	renamed:    src/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/NickAlreadyInUseException.java -> src/main/java/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/NickAlreadyInUseException.java
+#	renamed:    src/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/OutputThread.java -> src/main/java/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/OutputThread.java
+#	renamed:    src/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/PircBot.java -> src/main/java/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/PircBot.java
+#	renamed:    src/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/PircBotLogger.java -> src/main/java/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/PircBotLogger.java
+#	renamed:    src/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/Queue.java -> src/main/java/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/Queue.java
+#	new file:   src/main/java/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/ReplyConstants.java
+#	renamed:    src/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/TrustingSSLSocketFactory.java -> src/main/java/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/TrustingSSLSocketFactory.java
+#	renamed:    src/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/User.java -> src/main/java/com/ensifera/animosity/craftirc/libs/org/jibble/pircbot/User.java
+#
+
