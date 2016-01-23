@@ -1,6 +1,5 @@
 package com.ensifera.animosity.craftirc;
 
-
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -374,7 +373,8 @@ public final class Minebot extends PircBot implements Runnable {
             if (sender.equals(this.getNick())) {
                 this.amNowInChannel(channel);
             } else {
-          	if (this.isThisIgnored(sender) || this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase())) {
+			
+			if (this.isThisIgnored(sender) || this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase())) {
                 try {
                 	    Thread.sleep(1500);
                 	} catch(InterruptedException ex) {
@@ -391,6 +391,7 @@ public final class Minebot extends PircBot implements Runnable {
                 			return;
                 		}
                 	}
+
                 }
                 final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "join");
                 if (msg == null) {
@@ -483,6 +484,7 @@ public final class Minebot extends PircBot implements Runnable {
             if (recipientNick.equalsIgnoreCase(this.getNick())) {
                 this.joinChannel(channel, this.plugin.cChanPassword(this.botId, channel));
             }
+
             if (this.isThisIgnored(kickerNick) || this.isThisIgnored(recipientNick) || this.plugin.cUseMapAsWhitelist(this.botId) && (!this.plugin.cNicknameIsInIrcMap(this.botId, kickerNick.toLowerCase()) || !this.plugin.cNicknameIsInIrcMap(this.botId, recipientNick.toLowerCase()))) {
                 return;
             }
@@ -801,7 +803,7 @@ public boolean saveUser(String playername) {
         if (msg == null) {
             return;
         }
-
+		
         if (this.isThisIgnored(sender)||(this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase()))) {
             return;
         }
@@ -851,6 +853,7 @@ public boolean saveUser(String playername) {
         if (msg == null) {
             return;
         }
+
 
         if (this.isThisIgnored(sender)||(this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase()))) {
             return;
