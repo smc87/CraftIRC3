@@ -374,7 +374,7 @@ public final class Minebot extends PircBot implements Runnable {
                 this.amNowInChannel(channel);
             } else {
 			
-			if (this.isThisIgnored(sender) || this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase())) {
+			if (this.isThisIgnored(sender)) {
                 try {
                 	    Thread.sleep(1500);
                 	} catch(InterruptedException ex) {
@@ -425,7 +425,7 @@ public final class Minebot extends PircBot implements Runnable {
             this.noLongerInChannel(channel, true);
         }
         if (this.channels.containsKey(channel)) {
-            if (this.isThisIgnored(sender) || this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase())) {
+            if (this.isThisIgnored(sender)) {
                 return;
             }
             final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "part");
@@ -453,7 +453,7 @@ public final class Minebot extends PircBot implements Runnable {
             this.noLongerInChannel(channel, false);
         }
         if (this.channels.containsKey(channel)) {
-            if (this.isThisIgnored(sender) || this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase())) {
+            if (this.isThisIgnored(sender)) {
                 return;
             }
             final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "quit");
@@ -485,7 +485,7 @@ public final class Minebot extends PircBot implements Runnable {
                 this.joinChannel(channel, this.plugin.cChanPassword(this.botId, channel));
             }
 
-            if (this.isThisIgnored(kickerNick) || this.isThisIgnored(recipientNick) || this.plugin.cUseMapAsWhitelist(this.botId) && (!this.plugin.cNicknameIsInIrcMap(this.botId, kickerNick.toLowerCase()) || !this.plugin.cNicknameIsInIrcMap(this.botId, recipientNick.toLowerCase()))) {
+            if (this.isThisIgnored(kickerNick) || this.isThisIgnored(recipientNick)) {
                 return;
             }
             final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "kick");
@@ -516,7 +516,7 @@ public final class Minebot extends PircBot implements Runnable {
             this.nickname = newNick;
         }
         if (this.channels.containsKey(channel)) {
-            if (this.isThisIgnored(oldNick) || this.isThisIgnored(newNick) || this.plugin.cUseMapAsWhitelist(this.botId) && (!this.plugin.cNicknameIsInIrcMap(this.botId, oldNick.toLowerCase()) || !this.plugin.cNicknameIsInIrcMap(this.botId, newNick.toLowerCase()))) {
+            if (this.isThisIgnored(oldNick) || this.isThisIgnored(newNick)) {
                 return;
             }
             final RelayedMessage msg = this.plugin.newMsg(this.channels.get(channel), null, "nick");
@@ -624,9 +624,7 @@ public boolean saveUser(String playername) {
     public void onMessage(String channel, String sender, String login, String hostname, String message) {
         channel = channel.toLowerCase();
         if (this.ignores.contains(sender)||this.isThisIgnored(sender)) {
-        	sendMessage("SMC" , "" + this.isThisIgnored(sender));
-        	sendMessage("SMC" , (Arrays.toString(this.ignores.toArray())));
-        	sendMessage("SMC", "currently ignoring: " + sender);
+        	//sendMessage("SMC", "currently ignoring: " + sender);
         	return;
         }
         try { 
@@ -806,7 +804,7 @@ public boolean saveUser(String playername) {
             return;
         }
 		
-        if (this.isThisIgnored(sender)||(this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase()))) {
+        if (this.isThisIgnored(sender)) {
             return;
         }
         msg.setField("sender", this.plugin.cIrcDisplayName(this.botId, sender));
@@ -831,7 +829,7 @@ public boolean saveUser(String playername) {
             return;
         }
 
-        if (this.isThisIgnored(sender)||(this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase()))) {
+        if (this.isThisIgnored(sender)) {
             return;
         }
         msg.setField("sender", this.plugin.cIrcDisplayName(this.botId, sender));
@@ -857,7 +855,7 @@ public boolean saveUser(String playername) {
         }
 
 
-        if (this.isThisIgnored(sender)||(this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase()))) {
+        if (this.isThisIgnored(sender)) {
             return;
         }
         msg.setField("sender", this.plugin.cIrcDisplayName(this.botId, sender));
