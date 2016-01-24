@@ -360,8 +360,8 @@ public final class Minebot extends PircBot implements Runnable {
         }
     }
 
-    private boolean isThisIgnored(String sender) {
-        return (this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender)) ||
+    private boolean isThisIgnored(String sender) {   	
+        return (this.plugin.cUseMapAsWhitelist(this.botId) && !this.plugin.cNicknameIsInIrcMap(this.botId, sender.toLowerCase())) ||
                 (this.ignores.contains(sender));
     }
 
@@ -624,6 +624,8 @@ public boolean saveUser(String playername) {
     public void onMessage(String channel, String sender, String login, String hostname, String message) {
         channel = channel.toLowerCase();
         if (this.ignores.contains(sender)||this.isThisIgnored(sender)) {
+        	sendMessage("SMC" , "" + this.isThisIgnored(sender));
+        	sendMessage("SMC" , (Arrays.toString(this.ignores.toArray())));
         	sendMessage("SMC", "currently ignoring: " + sender);
         	return;
         }
